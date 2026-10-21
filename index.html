@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRT VHS Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  /*
+    CRT VHS Overlay — 1080x1920 vertical
+    Transparent background: lay it ABOVE your game capture, BELOW text/alerts.
+
+    URL options (add to the end of the file path / link):
+      ?strength=subtle   lighter scanlines, vignette, grain and glitches
+      ?osd=0             hide the "LIVE" indicator
+      ?glitch=0          turn off tracking glitches and static bursts
+  */
+  :root {
+    --osd-white: #f2efe6;
+    --rec-red:   #e5322b;
+    --shade:     8, 6, 4;      /* warm black, as RGB */
+    --scan-alpha: 0.26;
+    --vig-alpha:  0.86;
+    --gutter: 2.2vmin;
+    --radius: 6vmin;
+  }
+  body.subtle { --scan-alpha: 0.15; --vig-alpha: 0.62; }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+  }
+  .layer { position: fixed; inset: 0; pointer-events: none; }
+
+  /* Washed-out tape tint: warm highlights, faint teal in the low end */
+  .tint {
+    background:
+      linear-gradient(to bottom, rgba(255, 214, 150, 0.06), rgba(255, 196, 140, 0.03) 60%, rgba(70, 120, 120, 0.05));
+  }
+
+  /* Scanlines: 2px dark every 4px — survives phone compression */
+  .scanlines {
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0 2px,
+      rgba(var(--shade), var(--scan-alpha)) 2px 4px
+    );
+  }
+
+  /* Tube vignette */
+  .vignette {
+    background: radial-gradient(
+      ellipse 75% 68% at 50% 50%,
+      transparent 55%,
+      rgba(var(--shade), calc(var(--vig-alpha) * 0.55)) 82%,
+      rgba(var(--shade), var(--vig-alpha)) 100%
+    );
+  }
+
+  /* Slow hum bar rolling down the screen */
+  .humbar {
+    inset: auto 0 auto 0;
+    height: 34vh;
+    top: -34vh;
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 245, 225, 0) 0%,
+      rgba(255, 245, 225, 0.015) 25%,
+      rgba(255, 245, 225, 0.045) 50%,
+      rgba(255, 245, 225, 0.015) 75%,
+      rgba(255, 245, 225, 0) 100%
+    );
+    animation: roll 11s linear infinite;
+  }
+  @keyframes roll { to { transform: translateY(170vh); } }
+
+  /* Brightness flutter */
+  .flicker {
+    background: rgb(255, 248, 235);
+    opacity: 0;
+    animation: flicker 3.3s steps(1) infinite;
+  }
+  @keyframes flicker {
+    0%   { opacity: 0.012; }
+    9%   { opacity: 0; }
+    27%  { opacity: 0.022; }
+    29%  { opacity: 0; }
+    58%  { opacity: 0.01; }
+    61%  { opacity: 0.026; }
+    63%  { opacity: 0; }
+  }
+
+  /* Grain, head-switching noise, tracking glitches, static bursts */
+  #noise {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Tube edge: rounded corners, dark falloff, no neon */
+  .bezel {
+    inset: var(--gutter);
+    border-radius: var(--radius);
+    box-shadow:
+      0 0 0 50vmax rgba(var(--shade), 0.95),
+      inset 0 0 2vmin rgba(var(--shade), 0.9),
+      inset 0 0 9vmin rgba(var(--shade), 0.45);
+  }
+
+  /* Glass glare along the top-left of the tube */
+  .glare {
+    inset: var(--gutter);
+    border-radius: var(--radius);
+    background: radial-gradient(
+      ellipse 60% 22% at 28% 6%,
+      rgba(255, 255, 255, 0.06),
+      transparent 70%
+    );
+  }
+
+  /* VHS on-screen display */
+  .osd {
+    font-family: "VT323", "Courier New", monospace;
+    font-size: 5.6vmin;
+    letter-spacing: 0.4vmin;
+    color: var(--osd-white);
+    text-shadow:
+      0.3vmin 0 0 rgba(229, 50, 43, 0.55),
+      -0.3vmin 0 0 rgba(60, 160, 220, 0.45),
+      0.25vmin 0.25vmin 0 rgba(0, 0, 0, 0.7);
+  }
+  .osd .tl {
+    position: absolute;
+    top: calc(var(--gutter) + 4vmin);
+    left: calc(var(--gutter) + 5vmin);
+    display: flex;
+    align-items: center;
+    gap: 1.6vmin;
+    will-change: transform;
+  }
+  .dot {
+    width: 2.8vmin;
+    height: 2.8vmin;
+    border-radius: 50%;
+    background: var(--rec-red);
+    box-shadow: 0.25vmin 0.25vmin 0 rgba(0, 0, 0, 0.6), 0 0 1.2vmin rgba(229, 50, 43, 0.5);
+  }
+  .blink { animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  body.no-osd .osd { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .humbar, .flicker, .blink { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="layer tint"></div>
+  <div class="layer scanlines"></div>
+  <div class="layer vignette"></div>
+  <div class="layer humbar"></div>
+  <div class="layer flicker"></div>
+  <canvas class="layer" id="noise"></canvas>
+  <div class="layer glare"></div>
+  <div class="layer bezel"></div>
+
+  <div class="layer osd">
+    <div class="tl" id="live"><span class="dot blink"></span>LIVE</div>
+  </div>
+
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    var subtle = p.get("strength") === "subtle";
+    var glitchOn = p.get("glitch") !== "0";
+    if (subtle) document.body.classList.add("subtle");
+    if (p.get("osd") === "0") document.body.classList.add("no-osd");
+
+    var reduced = false;
+    try { reduced = matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+    // Low-res noise buffer, scaled up to fill the screen
+    var W = 270, H = 480;
+    var canvas = document.getElementById("noise");
+    var ctx = canvas.getContext("2d");
+    canvas.width = W;
+    canvas.height = H;
+    var img = ctx.createImageData(W, H);
+    var d = img.data;
+
+    var grain = subtle ? 10 : 18;          // base grain alpha (0–255)
+    var k = subtle ? 0.6 : 1;              // glitch intensity multiplier
+    var live = document.getElementById("live");
+
+    // Glitch scheduling
+    var now = performance.now();
+    var nextTrack = now + 2500 + Math.random() * 4000;
+    var nextBurst = now + 9000 + Math.random() * 12000;
+    var track = null;   // { y, h, speed, end }
+    var burstEnd = 0;
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    function setPx(i, v, a) { d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = a; }
+
+    function streakRow(y, alpha, density) {
+      // Horizontal tape-dropout streaks along one row
+      var x = 0;
+      while (x < W) {
+        var len = (Math.random() * 40) | 0;
+        if (Math.random() < density) {
+          var v = 200 + ((Math.random() * 55) | 0);
+          for (var j = 0; j < len && x + j < W; j++) setPx((y * W + x + j) * 4, v, alpha);
+        }
+        x += len + 1;
+      }
+    }
+
+    var last = 0;
+    function frame(t) {
+      requestAnimationFrame(frame);
+      if (t - last < 42) return;   // ~24fps, like tape
+      last = t;
+
+      var bursting = glitchOn && t < burstEnd;
+
+      // 1. Base grain (+ static burst)
+      var ga = bursting ? (subtle ? 60 : 95) : grain;
+      for (var i = 0; i < d.length; i += 4) {
+        setPx(i, (Math.random() * 255) | 0, ga);
+      }
+
+      // 2. Head-switching noise: jittery strip along the bottom edge
+      var hs = 10 + ((Math.random() * 4) | 0);
+      for (var y = H - hs; y < H; y++) streakRow(y, (110 * k) | 0, 0.55);
+
+      if (glitchOn && !reduced) {
+        // 3. Tracking glitch: a noisy band that drifts down the screen
+        if (!track && t > nextTrack) {
+          track = { y: rand(H * 0.1, H * 0.75), h: rand(10, 34), speed: rand(-0.8, 2.2), end: t + rand(350, 1300) };
+        }
+        if (track) {
+          var top = track.y | 0;
+          for (var ty = top; ty < top + track.h && ty < H; ty++) {
+            if (ty < 0) continue;
+            var edge = Math.min(ty - top, top + track.h - ty) / (track.h / 2);
+            streakRow(ty, (150 * k * (0.35 + 0.65 * edge)) | 0, 0.4 + 0.4 * edge);
+          }
+          // a couple of thin bright dropout lines
+          if (Math.random() < 0.6) streakRow((((track.y - rand(4, 16)) | 0) + H) % H, (170 * k) | 0, 0.25);
+          track.y += track.speed;
+          var shift = ((Math.random() - 0.5) * 2.4).toFixed(2);
+          live.style.transform = "translateX(" + shift + "vmin)";
+          if (t > track.end) {
+            track = null;
+            live.style.transform = "";
+            nextTrack = t + rand(4000, 11000);
+          }
+        }
+
+        // 4. Rare full-screen static burst
+        if (!bursting && t > nextBurst) {
+          burstEnd = t + rand(90, 200);
+          nextBurst = t + rand(15000, 30000);
+        }
+        if (bursting) {
+          live.style.transform = "translateX(" + ((Math.random() - 0.5) * 3).toFixed(2) + "vmin)";
+        } else if (!track) {
+          live.style.transform = "";
+        }
+      }
+
+      ctx.putImageData(img, 0, 0);
+    }
+    requestAnimationFrame(frame);
+  })();
+</script>
+</body>
+</html>
